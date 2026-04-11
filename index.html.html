@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | Help Tracking</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <!-- Leaflet FREE Map - No API Key needed! -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --secondary: #8b5cf6;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+            --text-dim: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 370px;
+            background: var(--card-bg);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+        }
+
+        .sidebar-header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .sidebar-header p {
+            font-size: 0.8rem;
+            opacity: 0.8;
+            margin-top: 4px;
+        }
+
+        .count-badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            margin-top: 6px;
+        }
+
+        .history-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .location-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 0.75rem;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .location-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--primary);
+        }
+
+        .location-item.active {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.15);
+        }
+
+        .item-time {
+            color: var(--primary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .item-coords {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            font-family: monospace;
+        }
+
+        .item-address {
+            font-size: 0.75rem;
+            color: #4ade80;
+            margin-top: 4px;
+        }
+
+        .item-accuracy {
+            font-size: 0.7rem;
+            color: #f59e0b;
+            margin-top: 2px;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .btn-maps {
+            background: var(--primary);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.7rem;
+            text-align: center;
+            flex: 1;
+        }
+
+        .btn-street {
+            background: #10b981;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.7rem;
+            text-align: center;
+            flex: 1;
+        }
+
+        .btn-street:hover {
+            background: #059669;
+        }
+
+        .btn-maps:hover {
+            background: var(--secondary);
+        }
+
+        .btn-delete {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            flex: 1;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .btn-delete:hover {
+            background: #dc2626;
+        }
+
+        #map-container {
+            flex: 1;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .map-overlay {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            z-index: 999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .map-btn {
+            background: var(--card-bg);
+            color: var(--text);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-family: 'Outfit', sans-serif;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: all 0.2s;
+        }
+
+        .map-btn:hover {
+            background: rgba(99, 102, 241, 0.3);
+        }
+
+        .history-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .history-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        .empty-msg {
+            text-align: center;
+            color: var(--text-dim);
+            padding-top: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                height: 45vh;
+                border-right: none;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h1>🛡️ Help Requests</h1>
+            <p>Real-time location monitoring</p>
+            <span class="count-badge" id="countBadge">0 requests</span>
+        </div>
+        <div class="history-list" id="historyList">
+            <p class="empty-msg">Searching for requests...</p>
+        </div>
+    </div>
+
+    <div id="map-container">
+        <div id="map"></div>
+        <div class="map-overlay">
+            <button class="map-btn" onclick="showAllMarkers()">📍 Show All</button>
+            <button class="map-btn" onclick="clearMarkers()">🗑️ Clear Map</button>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Config
+        const firebaseConfig = {
+            apiKey: "AIzaSyARent8sZVgKxgL7w4ZtBfzJFkXWJfc2n8",
+            authDomain: "arman-63a6f.firebaseapp.com",
+            projectId: "arman-63a6f",
+            storageBucket: "arman-63a6f.firebasestorage.app",
+            messagingSenderId: "883393911052",
+            appId: "1:883393911052:web:10d30291c63595ce4e9129",
+            databaseURL: "https://arman-63a6f-default-rtdb.firebaseio.com"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // Leaflet Map Init - Dark theme FREE
+        const map = L.map('map').setView([30.3753, 69.3451], 6);
+
+        // Dark tile layer - free!
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap © CARTO',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Custom purple marker
+        function createMarkerIcon(isLatest) {
+            return L.divIcon({
+                html: `<div style="
+                width: ${isLatest ? '20px' : '16px'};
+                height: ${isLatest ? '20px' : '16px'};
+                background: ${isLatest ? '#6366f1' : '#8b5cf6'};
+                border: 3px solid white;
+                border-radius: 50%;
+                box-shadow: 0 0 ${isLatest ? '12px' : '6px'} rgba(99,102,241,0.8);
+            "></div>`,
+                iconSize: [isLatest ? 20 : 16, isLatest ? 20 : 16],
+                iconAnchor: [isLatest ? 10 : 8, isLatest ? 10 : 8],
+                className: ''
+            });
+        }
+
+        let markers = {};
+        let firstLoad = true;
+        const notifSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+
+        // Load Firebase locations
+        db.ref("locations").on("value", (snapshot) => {
+            const data = snapshot.val();
+            const historyList = document.getElementById("historyList");
+
+            if (!data) {
+                historyList.innerHTML = '<p class="empty-msg">Koi request nahi abhi tak.</p>';
+                document.getElementById("countBadge").textContent = "0 requests";
+                return;
+            }
+
+            if (!firstLoad) {
+                notifSound.play().catch(() => { });
+            }
+            firstLoad = false;
+
+            // Clear old markers
+            Object.values(markers).forEach(m => map.removeLayer(m));
+            markers = {};
+            historyList.innerHTML = "";
+
+            const entries = Object.entries(data).reverse();
+            document.getElementById("countBadge").textContent = entries.length + " requests";
+
+            entries.forEach(([key, loc], index) => {
+                const isLatest = index === 0;
+                const date = new Date(loc.time);
+                const timeStr = date.toLocaleTimeString('en-PK');
+                const dateStr = date.toLocaleDateString('en-PK');
+                const coordsStr = loc.lat.toFixed(6) + ", " + loc.lng.toFixed(6);
+                const mapsUrl = `https://www.google.com/maps?q=${loc.lat},${loc.lng}&z=18`;
+                const streetUrl = `https://www.google.com/maps?q=${loc.lat},${loc.lng}&layer=c&cbll=${loc.lat},${loc.lng}`;
+                const accuracyText = loc.accuracy ? `±${Math.round(loc.accuracy)}m` : '';
+
+                // Sidebar item
+                const div = document.createElement("div");
+                div.className = "location-item" + (isLatest ? " active" : "");
+                div.id = "item-" + key;
+                div.innerHTML = `
+                <div class="item-time">${isLatest ? '🔴 LATEST — ' : '📍 '}${dateStr} ${timeStr}</div>
+                <div class="item-coords">${coordsStr}</div>
+                ${accuracyText ? `<div class="item-accuracy">🎯 Accuracy: ${accuracyText}</div>` : ''}
+                <div class="item-address" id="addr-${key}">Loading address...</div>
+                <div class="btn-row">
+                    <a class="btn-maps" href="${mapsUrl}" target="_blank">🗺️ Google Maps</a>
+                    <a class="btn-street" href="${streetUrl}" target="_blank">🚶 Street</a>
+                    <button class="btn-delete" onclick="deleteLocation('${key}', event)">🗑️ Delete</button>
+                </div>
+            `;
+
+                div.onclick = function (e) {
+                    if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON') return;
+                    focusLocation(key, loc);
+                    document.querySelectorAll('.location-item').forEach(el => el.classList.remove('active'));
+                    div.classList.add('active');
+                };
+
+                historyList.appendChild(div);
+
+                // Leaflet marker
+                const marker = L.marker([loc.lat, loc.lng], {
+                    icon: createMarkerIcon(isLatest)
+                }).addTo(map);
+
+                marker.on('click', () => focusLocation(key, loc));
+                markers[key] = marker;
+
+                // Get address
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.lat}&lon=${loc.lng}&zoom=18`)
+                    .then(res => res.json())
+                    .then(addrData => {
+                        const address = addrData.display_name || coordsStr;
+                        const addrEl = document.getElementById(`addr-${key}`);
+                        if (addrEl) addrEl.textContent = address;
+                        loc.address = address;
+                    })
+                    .catch(() => {
+                        const addrEl = document.getElementById(`addr-${key}`);
+                        if (addrEl) addrEl.textContent = coordsStr;
+                    });
+            });
+
+            // Auto focus latest
+            if (entries.length > 0) {
+                const [latestKey, latestLoc] = entries[0];
+                setTimeout(() => focusLocation(latestKey, latestLoc), 800);
+            }
+        });
+
+        function focusLocation(key, loc) {
+            if (!markers[key]) return;
+            map.setView([loc.lat, loc.lng], 18);
+
+            const mapsUrl = `https://www.google.com/maps?q=${loc.lat},${loc.lng}&z=18`;
+            const timeStr = new Date(loc.time).toLocaleString('en-PK');
+
+            markers[key].bindPopup(`
+            <div style="font-family: Outfit, sans-serif; min-width: 200px;">
+                <b style="color:#6366f1; font-size:1rem;">📍 Exact Location</b><br>
+                <span style="font-size:0.8rem; color:#555;">${timeStr}</span><br><br>
+                <span style="font-family:monospace; font-size:0.85rem;">${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}</span><br>
+                ${loc.accuracy ? `<span style="font-size:0.75rem; color:#f59e0b;">🎯 ±${Math.round(loc.accuracy)}m accuracy</span><br>` : ''}
+                ${loc.address ? `<span style="font-size:0.75rem; color:#555;">${loc.address}</span><br>` : ''}
+                <a href="${mapsUrl}" target="_blank"
+                   style="display:inline-block; margin-top:8px; background:#6366f1; color:white; padding:5px 12px; border-radius:6px; text-decoration:none; font-size:0.8rem;">
+                   Open in Google Maps ↗
+                </a>
+            </div>
+        `, { maxWidth: 280 }).openPopup();
+        }
+
+        function showAllMarkers() {
+            const keys = Object.keys(markers);
+            if (keys.length === 0) return;
+            const group = L.featureGroup(Object.values(markers));
+            map.fitBounds(group.getBounds(), { padding: [50, 50] });
+        }
+
+        function clearMarkers() {
+            Object.values(markers).forEach(m => map.removeLayer(m));
+            markers = {};
+        }
+
+        function deleteLocation(key, e) {
+            e.stopPropagation();
+            if (confirm("Delete this location?")) {
+                db.ref("locations").child(key).remove();
+                if (markers[key]) {
+                    map.removeLayer(markers[key]);
+                    delete markers[key];
+                }
+                const item = document.getElementById("item-" + key);
+                if (item) item.remove();
+            }
+        }
+    </script>
+</body>
+
+</html>
